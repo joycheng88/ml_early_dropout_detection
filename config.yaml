@@ -1,0 +1,314 @@
+# ML Training Configuration
+# ================================================
+# This file centralizes all hyperparameters and settings for model training
+# All changes are automatically tracked in experiment logs
+
+project:
+  name: "Student Dropout Prediction"
+  description: "Early identification of at-risk students for intervention"
+  version: "1.0.0"
+
+data:
+  # Input data configuration
+  path: "data.csv"
+  separator: ";"
+  target_column: "Target"
+  
+  # Feature sets for progressive analysis
+  feature_sets:
+    early:
+      description: "Demographics only (enrollment time prediction)"
+      features:
+        - "Marital status"
+        - "Application mode"
+        - "Application order"
+        - "Course"
+        - "Daytime/evening attendance\t"
+        - "Previous qualification"
+        - "Previous qualification (grade)"
+        - "Nacionality"
+        - "Mother's qualification"
+        - "Father's qualification"
+        - "Mother's occupation"
+        - "Father's occupation"
+        - "Admission grade"
+        - "Displaced"
+        - "Educational special needs"
+        - "Debtor"
+        - "Tuition fees up to date"
+        - "Gender"
+        - "Scholarship holder"
+        - "Age at enrollment"
+        - "International"
+        - "Unemployment rate"
+        - "Inflation rate"
+        - "GDP"
+    
+    mid:
+      description: "Demographics + 1st semester (early intervention point)"
+      extends: "early"
+      additional_features:
+        - "Curricular units 1st sem (credited)"
+        - "Curricular units 1st sem (enrolled)"
+        - "Curricular units 1st sem (evaluations)"
+        - "Curricular units 1st sem (approved)"
+        - "Curricular units 1st sem (grade)"
+        - "Curricular units 1st sem (without evaluations)"
+    
+    full:
+      description: "Complete data (both semesters)"
+      extends: "mid"
+      additional_features:
+        - "Curricular units 2nd sem (credited)"
+        - "Curricular units 2nd sem (enrolled)"
+        - "Curricular units 2nd sem (evaluations)"
+        - "Curricular units 2nd sem (approved)"
+        - "Curricular units 2nd sem (grade)"
+        - "Curricular units 2nd sem (without evaluations)"
+
+preprocessing:
+  # Random seed for reproducibility
+  random_state: 42
+  
+  # Train-test split configuration
+  test_size: 0.2
+  stratified: true  # Maintains class distribution
+  
+  # Feature encoding
+  encoding:
+    categorical_method: "label"  # label encoding for tree compatibility
+    ordinal_detection: false
+  
+  # Scaling configuration (per algorithm)
+  scaling:
+    logistic_regression: true  # Linear models need scaling
+    random_forest: false       # Tree models don't need scaling
+    xgboost: false            # Tree models don't need scaling
+
+models:
+  # Algorithm 1: Logistic Regression (Baseline + Interpretability)
+  logistic_regression:
+    enabled: true
+    description: "Multinomial logistic regression with regularization"
+    
+    base_params:
+      max_iter: 1000
+      multi_class: "multinomial"
+      solver: "saga"
+      random_state: 42
+    
+    hyperparameter_tuning:
+      enabled: true
+      method: "grid_search"  # grid_search or random_search
+      cv_folds: 5
+      scoring: "f1_weighted"
+      
+      grid:
+        C: [0.001, 0.01, 0.1, 1, 10, 100]
+        penalty: ["l2", "l1"]
+        solver: ["saga"]
+    
+    methodology_notes: |
+      Ridge (L2) Regularization:
+      - Shrinks all coefficients proportionally
+      - Handles multicollinearity well
+      - Better when all features potentially useful
+      
+      Lasso (L1) Regularization:
+      - Can shrink coefficients exactly to zero
+      - Automatic feature selection
+      - Better when feature selection desired
+  
+  # Algorithm 2: Random Forest (Performance)
+  random_forest:
+    enabled: true
+    description: "Ensemble of decision trees"
+    
+    base_params:
+      n_jobs: -1
+      random_state: 42
+    
+    hyperparameter_tuning:
+      enabled: true
+      method: "random_search"  # More efficient for large space
+      n_iter: 20
+      cv_folds: 5
+      scoring: "f1_weighted"
+      
+      grid:
+        n_estimators: [100, 150, 200, 300]
+        max_depth: [10, 15, 20, None]
+        min_samples_split: [2, 5, 10]
+        min_samples_leaf: [1, 2, 4]
+        max_features: ["sqrt", "log2"]
+    
+    methodology_notes: |
+      Ensemble Approach:
+      - Multiple trees reduce overfitting
+      - Each tree uses random subsets
+      - Natural feature interaction capture
+      
+      Key Hyperparameters:
+      - n_estimators: More trees usually better (diminishing returns)
+      - max_depth: Controls model complexity
+      - min_samples_split: Prevents overfitting on small splits
+      - max_features: Feature subsampling for diversity
+  
+  # Algorithm 3: XGBoost (State-of-the-art)
+  xgboost:
+    enabled: true
+    description: "Gradient boosting with sequential tree refinement"
+    
+    base_params:
+      n_jobs: -1
+      random_state: 42
+      eval_metric: "mlogloss"
+    
+    hyperparameter_tuning:
+      enabled: true
+      method: "random_search"
+      n_iter: 20
+      cv_folds: 5
+      scoring: "f1_weighted"
+      
+      grid:
+        learning_rate: [0.01, 0.05, 0.1, 0.2]
+        max_depth: [3, 5, 7, 9]
+        subsample: [0.8, 0.9, 1.0]
+        colsample_bytree: [0.8, 0.9, 1.0]
+        n_estimators: [100, 150, 200, 300]
+        gamma: [0, 1, 2]  # Minimum loss reduction for split
+    
+    methodology_notes: |
+      Gradient Boosting:
+      - Sequential tree building (each corrects previous)
+      - Focuses on hard-to-predict examples
+      - Powerful but prone to overfitting
+      
+      Key Hyperparameters:
+      - learning_rate: Step size (lower = slower but more precise)
+      - max_depth: Individual tree complexity
+      - subsample: Row subsampling for robustness
+      - colsample_bytree: Column subsampling for diversity
+      - gamma: Regularization (higher = simpler trees)
+
+evaluation:
+  # Metrics to compute
+  metrics:
+    - accuracy
+    - f1_weighted
+    - f1_macro
+    - confusion_matrix
+    - classification_report
+    - feature_importances  # Where applicable
+    - coefficients  # For logistic regression
+  
+  # Cross-validation for robustness
+  cross_validation:
+    enabled: true
+    n_folds: 5
+    strategy: "stratified"  # Maintains class distribution
+  
+  # Dataset analysis
+  dataset_comparison:
+    enabled: true
+    datasets: ["early", "mid", "full"]
+    description: "Compare performance across progressive feature sets"
+
+experiment_tracking:
+  # Save experiment results with timestamps
+  enabled: true
+  base_directory: "experiments"
+  save_models: true
+  save_predictions: true
+  save_config: true
+  
+  # What to log
+  logging:
+    hyperparameters: true
+    metrics: true
+    feature_importances: true
+    training_time: true
+    model_size: true
+    cross_validation_scores: true
+
+visualization:
+  # Generate plots
+  enabled: true
+  
+  plots:
+    model_comparison: true
+    feature_importance: true
+    confusion_matrices: true
+    correlation_heatmaps: true
+    roc_curves: true
+    learning_curves: false  # Slow for large datasets
+  
+  # Figure configuration
+  figure_dpi: 150
+  figure_format: "png"
+  save_directory: "results/plots"
+
+multicollinearity:
+  # Variance Inflation Factor analysis
+  vif_analysis:
+    enabled: true
+    threshold: 5.0  # Flag features with VIF > threshold
+  
+  # Correlation analysis
+  correlation_analysis:
+    enabled: true
+    high_correlation_threshold: 0.7
+
+feature_importance:
+  # Feature importance analysis
+  enabled: true
+  
+  # Methods
+  methods:
+    - name: "sklearn"
+      applies_to: ["random_forest", "xgboost"]
+      description: "Built-in feature importance (MDI)"
+    
+    - name: "permutation"
+      applies_to: ["random_forest", "xgboost", "logistic_regression"]
+      description: "Drop-column importance"
+      enabled: false  # Slower
+    
+    - name: "coefficients"
+      applies_to: ["logistic_regression"]
+      description: "Standardized coefficients for interpretation"
+  
+  top_n: 20  # Show top 20 features
+
+intervention_thresholds:
+  # Risk thresholds for student support
+  high_risk: 0.60     # Probability threshold for immediate action
+  medium_risk: 0.40   # Close monitoring
+  low_risk: 0.00      # Routine follow-up
+  
+  # Feature-specific thresholds
+  curricular_units_without_eval_threshold: 3
+  approval_rate_high_risk: 0.30
+  approval_rate_medium_risk: 0.50
+  grade_average_high_risk: 10.0
+  grade_average_medium_risk: 13.0
+
+# Advanced Options
+# ======================================
+
+# advanced:
+#   # Class weighting for imbalanced data
+#   class_weight: "balanced"  # or null for no weighting
+#   
+#   # Early stopping for boosting models
+#   early_stopping:
+#     enabled: false
+#     validation_fraction: 0.1
+#     n_iter_no_change: 10
+#   
+#   # Feature selection (Lasso)
+#   feature_selection:
+#     enabled: false
+#     method: "lasso"
+#     max_features: 15
