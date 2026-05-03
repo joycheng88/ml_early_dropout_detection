@@ -1,8 +1,10 @@
 # ML Early Dropout Detection
 
 **DATASCI 347: Machine Learning I**
+**Instructor:** Prof. Ruoxuan Xiong  
+**Group Member:** Grayson Stone, Eric Wang, Jiuyi (Joy) Cheng, Samuel Chernoff
 
-Multiclass classification project predicting student status (Dropout, Enrolled, Graduate) using progressive feature sets: demographics only → demographics + 1st semester → full data (demographics + 1st & 2nd semester).
+This GitHub Repository documents the project: "Multiclass Classification: ML Algorithm for Early Dropout Detection (Dropout, Enrolled, Graduate)" using progressive academic performance feature sets: demographics only → demographics + 1st semester → full data (demographics + 1st & 2nd semester).
 
 ---
 
@@ -10,7 +12,7 @@ Multiclass classification project predicting student status (Dropout, Enrolled, 
 
 - **Total samples**: 4,424 students
 - **Features**: 37 total (demographics + academic performance + economic indicators)
-- **Target classes**: 3 (Dropout: 1,421 | Graduate: 2,209 | Enrolled: 794)
+- **Target classes**: Dropout: 1,421 | Graduate: 2,209 | Enrolled: 794 
 - **Train-test split**: 80-20 stratified
 
 ### Class Distribution & Imbalance
@@ -376,10 +378,10 @@ After full execution, you'll have:
 ```
 .
 ├── model_training.ipynb           # Main notebook with full pipeline
-├── data.csv                        # 4,424 × 37 student dataset
-├── config.yaml                     # Configuration file
-├── model_utils.py                  # Reusable utility functions
-└── README.md                       # This file
+├── data.csv                       # 4,424 × 37 student dataset
+├── config.yaml                    # Configuration file
+├── model_utils.py                 # Reusable utility functions
+└── README.md                      # This file
 ```
 
 ### Key Notebook Sections
