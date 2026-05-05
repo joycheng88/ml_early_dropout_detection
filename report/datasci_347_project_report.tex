@@ -1,0 +1,228 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{graphicx}
+\usepackage{amsmath, amssymb}
+\usepackage{booktabs}
+\usepackage{url}
+
+\graphicspath{{figure/}}
+
+
+\title{Multiclass Classification: ML Algorithm \\ for Early Dropout Detection}
+\author{Grayson Stone \and Eric Wang \and Joy Cheng \and Sam Chernoff}
+\date{DATASCI 347: Machine Learning I \\ Spring 2026}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+This project examines the multiclass prediction of student outcomes using administrative records from the UCI 'Predict Students' Dropout and Academic Success' dataset. We compare logistic regression (with ridge and lasso regularization), random forest, and XGBoost across three progressively more complex feature sets that represent enrollment-time data, first-semester data, and full-year data. The main result is that first-semester performance information provides the largest improvement in predictive power, while second-semester information adds only modest gains. The best overall model is XGBoost on the full feature set, but the mid-semester feature set offers a strong practical tradeoff because it nearly matches the full model while supporting an earlier intervention mechanism.
+
+\end{abstract}
+
+\tableofcontents
+\clearpage
+
+\section{Introduction}
+
+Student dropout is an important educational and social problem because leaving school early is associated with lower labor market outcomes and weaker long-term opportunities. In 2025, the US Bureau of Labor Statistics reported that individuals without a college degree faced an unemployment rate of 3.8\%, which was substantially greater than those with an associate’s degree, 2.8\%, or a Bachelor’s degree, 2.5\% (Lochner \& Moretti, 2024). Lochner and Moretti found that an increase in education levels by a year in US states was associated with lower arrest rates by 11\% or greater (Lochner and Moretti, 2004). 
+
+Ensuring that students remain in school improves outcomes for individual students and provides social benefits through lowered crime rates. The ability to predict when students are likely to drop out is crucial for society to reap these benefits. Developing an understanding of when a student is going to drop out can help school districts design targeted interventions for vulnerable students and combat the issue of dropping out.
+
+This problem is interesting because it is both predictive and operational. This study aims to create a machine learning model to predict when students are likely to drop out, identify crucial predictors to guide further data collection efforts, and examine when to collect data to generate the most informative predictions. The study used data from the UCI Machine Learning Repository, specifically ``Predict Students' Dropout and Academic Success,'' which contains administrative records from the Instituto Politécnico de Portalegre (Realinho et al., 2021).
+
+The 36 features were divided temporally into three sets: early, mid, and late (full) variables. Early variables include marital status, parental qualifications, age, gender, and pre-college academic performance. Mid variables include first-semester academic performance variables, such as credits enrolled, completed, and evaluated. Late variables include all previous variables, as well as second-semester academic performance variables. The marginal benefit of including additional variables was evaluated to determine the optimal time for future data collection, balancing both efficiency and accuracy of our model outcome.
+
+To predict when students are going to drop out, we used classification methods trained on our data that indicate whether a student dropped out with a categorical variable, along with other academic and non-academic variables. Classification methods like logistic regression, random forest, and XGBoost enable us to predict this binary variable, dropped out or not, using numerical and categorical predictors. With access to many variables about our sample of students, we want to ensure that we are not overfitting on unimportant variables. The use of regularization methods like ridge regression and Lasso, as well as 5-fold cross validation were used to address this concern. If the relationship between these variables and dropping out is highly irregular, we may see regression methods fail to capture the true underlying pattern. To address this issue, we also implement random forests and boosted decision trees via XGBoost to analyze potentially irregular relationships.
+
+\section{Setup}
+
+\subsection{Dataset}
+The data employed in this study originates from the ``Predict Students' Dropout and Academic Success'' dataset, hosted on the UCI Machine Learning Repository (Realinho et al., 2021). The dataset was created by researchers at the Instituto Politécnico de Portalegre and was compiled from several disjoint administrative databases. It contains 4,424 student records across 17 undergraduate degree programs. Each record contains 36 predictive features and one target variable, indicating the student's educational outcome. The target has three classes: Dropout (1,421 students), Graduate (2,209 students), and Enrolled (794 students). The class distribution is imbalanced, with Graduates making up about 49.9\% of the sample and Enrolled students making up about 17.9\%.
+
+The 36 predictive features combine demographic, academic, and institutional information. The first category includes demographic and socioeconomic attributes known at the time of enrollment, such as marital status, parental qualifications, age at enrollment, gender, and scholarship status. The second category captures academic background information, such as previous qualifications and grades, admission grades, and course of study. The third category records academic performance during the first and second semesters, including metrics such as curricular units credited, enrolled, evaluated, approved, and their corresponding grades, along with three macroeconomic indicators at the national level (unemployment rate, inflation rate, and GDP). No missing values were present in the dataset.
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lr}
+\toprule
+Statistic & Value \\
+\midrule
+Students & 4,424 \\
+Dropout & 1,421 \\
+Graduate & 2,209 \\
+Enrolled & 794 \\
+\bottomrule
+\end{tabular}
+\caption{Dataset Statistics}
+\end{table}
+
+\vspace{-1em}
+
+\subsection{Experimental Setup}
+
+We used Python 3.12.11 in a local virtual environment with scikit-learn 1.6.1, XGBoost 3.2.0, pandas 2.2.3, and NumPy 2.2.6. The project was run in a Jupyter-based workflow using the repository's training notebook and utility code. The available packages in the environment support the full preprocessing, tuning, and evaluation pipeline used in the project (Pedregosa et al., 2011; Chen \& Guestrin, 2016).
+
+\subsection{Feature Sets}
+
+Three progressively enriched feature sets were constructed to simulate the information available at different stages of a student's academic trajectory. The first set, referred to as $\texttt{Early}$, consists of 24 features capturing solely demographic, socioeconomic, and enrollment time academic attributes. This set represents the baseline prediction scenario, in which no performance data has been collected. 
+
+\begin{figure}[htbp]
+\centering
+\begin{minipage}{0.49\textwidth}
+\centering
+\includegraphics[width=\linewidth]{correlation_early.png}
+\small (a) Early feature correlations
+\end{minipage}
+\begin{minipage}{0.49\textwidth}
+\centering
+\includegraphics[width=\linewidth]{correlation_full.png}
+\small (b) Full feature correlations
+\end{minipage}
+\caption{Correlation structure of the early and full feature sets. The full set shows stronger within-semester clustering, especially among the academic performance variables.}
+\label{fig:correlations}
+\end{figure}
+
+The second set, referred to as $\texttt{Mid}$, extends the Early set with six first-semester curricular performance variables for a total of 30 features. This configuration represents an early intervention point, where institutions could identify at risk students before the second semester begins. 
+
+The third set, referred to as $\texttt{Full}$, incorporates the remaining six second-semester performance variables for a total of all 36 features. This represents the most complete picture available for end of year prediction. This design allows us to predict a student’s educational outcome at different stages of information that would be available to administrators. We hope to understand how model performance improves with a richer feature set as well as identify the optimal period for intervention.
+
+\subsection{ML Models}
+
+Three classification algorithms were evaluated across each of the three feature sets, leading to 9 trained models in total. 
+
+The first algorithm is Multinomial Logistic Regression with Ridge (L2) regularization, serving as a linear baseline. It uses a regularization strength of 1.0 and a maximum of 1,000 iterations. Ridge regression shrinks all coefficients proportionally toward zero, but never completely to zero. We also tried Logistic Regression with Lasso (L1) regularization, identical to the Ridge variant except L1 penalization. Lasso drives coefficients to exactly zero, providing implicit feature selection. Both logistic regression variants were trained on standardized features.
+
+Additionally, two tree-based models were tested. Random Forest is an ensemble method that creates multiple independent decision trees from bootstrapped subsets of the data and aggregates their predictions through majority vote. This approach is naturally robust to outliers and captures nonlinear relationships without requiring feature scaling, making it suited for tabular data. The Random Forest model was configured with 100 decision trees, a maximum depth of 15, and balanced class weights to address the class imbalance. 
+
+XGBoost is a gradient boosted tree ensemble in which trees are trained sequentially, with each new tree learning to correct the residual errors of the ensemble built previously. This iterative process has strong predictive performance on structured data, particularly when complex feature interactions are present. XGBoost was configured with 100 estimators, a max depth of 7, a learning rate of 0.1, and multiclass log loss as the evaluation metric. Both tree-based models were trained on unscaled features, as tree splits are determined by feature ordering rather than distance.
+
+The data were split 80/20 into training (3,539 instances) and test (885 instances) sets using stratified sampling to preserve class proportions. A random seed of 42 was fixed throughout for reproducibility. Model validation was performed using 5-fold stratified cross-validation on the training set, scoring on weighted F1. Final evaluation on the test set used three conventional metrics: weighted F1 score, accuracy, and ROC-AUC.
+
+\section{Results}
+
+\subsection{Main Results}
+
+The most consistent finding across all algorithms is the substantial improvement in predictive performance as additional feature sets are introduced. Models trained on demographic features alone (Early) achieved test accuracies between 60.7\% and 63.6\%, indicating that using just enrollment time attributes for predicting student outcomes is limited. The introduction of first-semester performance data (Mid) produced the largest single improvement, with accuracy gains ranging from 9.5 percentage points for XGBoost to 12.3 percentage points for Random Forest. Adding second-semester data led to further albeit marginal improvements of 3.4 to 3.8 percentage points across all algorithms, reaching a ceiling near 76.8\% to 77.0\% accuracy. This suggests that first-semester performance is enough to make accurate predictions for students' outcomes. 
+
+
+\begin{figure}[htbp]
+\centering
+\begin{minipage}{0.32\textwidth}
+\centering
+\includegraphics[width=\linewidth]{test_accuracy_by_algorithm_and_dataset.png}
+\small Accuracy
+\end{minipage}
+\begin{minipage}{0.32\textwidth}
+\centering
+\includegraphics[width=\linewidth]{test_f1_by_algorithm_and_dataset.png}
+\small F1
+\end{minipage}
+\begin{minipage}{0.32\textwidth}
+\centering
+\includegraphics[width=\linewidth]{test_roc_auc_by_algorithm_and_dataset.png}
+\small ROC-AUC
+\end{minipage}
+\caption{Test performance by algorithm and feature set. The first-semester feature set produces the largest gain, while the full set adds a smaller incremental improvement.}
+\label{fig:performance-comparison}
+\end{figure}
+
+Among the algorithms, XGBoost achieved the highest average ROC-AUC across all three feature sets at 0.8377, followed by Random Forest at 0.8272, Lasso at 0.8198, and Ridge at 0.8197. When evaluated on the Full feature set, the four algorithms converged to near-identical test accuracies of 76.8\% to 77.0\%, suggesting that the primary driver of test performance is the availability of semester performance data rather than the choice of algorithm. The best single model by test accuracy was Lasso on the Full feature set at 76.95\%, though the margin was negligible.
+
+\begin{table}[h]
+\centering
+\begin{tabular}{l l c c c}
+\toprule
+Feature set & Best model & Accuracy & F1 & ROC-AUC \\
+\midrule
+Early & XGBoost & 61.92\% & 0.6037 & 0.7488 \\
+Mid & XGBoost & 73.79\% & 0.7269 & 0.8702 \\
+Full & XGBoost & 77.51\% & 0.7672 & 0.8943 \\
+\bottomrule
+\end{tabular}
+\caption{Test performance of the best model}
+\end{table}
+
+Cross-validation F1 scores closely tracked test set F1 scores across all configurations, with standard deviations consistently below 0.014. This alignment indicates that the models generalize well and are not substantially overfitting the training data.
+
+The feature engineering strategy itself is also a major result. The gap between Early and Mid is much larger than the gap between Mid and Full, so the first semester is the most informative collection point. This pattern suggests that future data collection efforts should prioritize getting reliable first-semester academic indicators, which support the timeline for early interventions. 
+
+XGBoost demonstrated a notable advantage in the Early feature set, where it outperformed all other algorithms by approximately 1 to 3 percentage points in test accuracy (63.6\% vs. 60.7\% to 62.5\%). This suggests that gradient boosted trees are more effective at prediction using purely enrollment time demographic features when academic performance data are unavailable. As richer features are added, this advantage diminishes, and all algorithms converge in performance. The total feature impact, measured as the accuracy gain from the Early to the Full set, was largest for Random Forest at 16.2 percentage points and smallest for XGBoost at 13.2 percentage points, consistent with XGBoost having already captured more signal from the demographic features alone.
+
+
+\subsection{Supplementary Results}
+
+Ridge and Lasso regression produced virtually identical results across all three feature sets for logistic regression. On the Early set, both achieved 62.5\% accuracy; on the Mid set, both reached 73.5\%; and on the Full set, both attained approximately 76.8\% and 77.0\%, respectively. The similarity in performance suggests that no single feature strongly benefits from being driven to exactly zero.
+
+
+
+For Random Forest, a maximum depth of 15 and balanced class weights were selected. The balanced class weighting addresses the imbalance in the target distribution (49.9\% Graduate vs. 17.9\% Enrolled) by inversely weighting each class's contribution to the loss function. The choice of 100 estimators and a depth of 15 appears to provide a reasonable bias-variance tradeoff, as cross-validation scores remain stable with standard deviations between 0.008 and 0.014.
+
+For XGBoost, a learning rate of 0.1 with 100 estimators and a maximum depth of 7 was used. The lower depth relative to Random Forest is due to the sequential nature of boosting, where each tree corrects residuals from prior trees, so individually shallower trees are preferred. The cross-validation standard deviation for XGBoost on the Full set was the lowest of any model at 0.0067, indicating particularly stable generalization.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.85\textwidth]{confusion_matrices_rf_xgb.png}
+\caption{Confusion matrices for random forest and XGBoost across the early, mid, and full feature sets. The full feature set produces the cleanest class separation, while the mid set remains strong enough for early intervention.}
+\label{fig:confusion-matrices}
+\end{figure}
+
+We employed $\texttt{GridSearchCV}$ for Logistic Regression using 18 exhaustive parameter combinations per dataset and 
+$\texttt{RandomizedSearchCV}$ for Tree Models with 20-25 intelligent random samples. The specific tuned hyperparameters are documented in the $\texttt{README.md}$, showing the best configurations for each model and dataset: 
+
+\begin{itemize}
+    \item XGBoost Mid: $\texttt{lr}=0.1$, $\texttt{depth}=5$, $\texttt{n\_est}=200$, $\texttt{subsample}=0.7$, $\texttt{gamma}=1$ (CV F1: $0.7416$)
+    \item Random Forest Mid: $\texttt{n\_est}=200$, $\texttt{depth}=15$, $\texttt{min\_split}=10$ (CV F1: $0.7338$)
+\end{itemize}
+
+\section{Discussion}
+
+Overall, our models produced three major takeaways. The first was that across the early, mid, and full feature sets, XGBoost consistently remained the most accurate model, with test accuracies of 0.6192, 0.7379, and 0.7751 for the early, mid, and full feature sets respectively. Logistic regression with both ridge and lasso regularization also performed effectively, as with the exception of $\texttt{LogReg\_Lasso\_full}$, test accuracies were within half a percent of the comparable XGBoost models. However, the LogReg models struggled on the F1-Score and ROC-AUC metrics, producing lower values compared to both the XGBoost and RandomForest models. This suggests that the LogReg models were the least effective at accurately classifying students’ dropout status. Based on these trends, it is likely that there was a non-linear relationship between student data and dropout rate and regularization improved overall model performance. This is consistent with the tree-based method of XGBoost being the best performing model overall, as it both effectively captures non-linear relationships and utilizes L1-L2 regularization. 
+
+\begin{figure}[htbp]
+\centering
+\begin{minipage}{0.32\textwidth}
+\centering
+\includegraphics[width=\linewidth]{feature_importance_logistic_regression.png}
+\small Logistic regression
+\end{minipage}
+\begin{minipage}{0.32\textwidth}
+\centering
+\includegraphics[width=\linewidth]{feature_importance_random_forest.png}
+\small Random forest
+\end{minipage}
+\begin{minipage}{0.32\textwidth}
+\centering
+\includegraphics[width=\linewidth]{feature_importance_xgboost.png}
+\small XGBoost
+\end{minipage}
+\caption{Top predictive features by model. Academic performance variables dominate all three model families, while tuition status appears as a secondary signal.}
+\label{fig:feature-importance}
+\end{figure}
+
+
+After identifying XGBoost as the most ideal model for predicting student dropout status, we can also use its feature importance to identify the variables that impacted the final prediction the most. For the $\texttt{XGBoost\_full}$ model, the most important features were $\texttt{2nd sem (approved)}$, $\texttt{Tuition}$, $\texttt{1st Sem (eval)}$, $\texttt{1st Sem (enrolled)}$, and $\texttt{1st Sem (approved)}$. While most of these features directly correspond to the amount of credits students have completed or intend to complete, the inclusion of $\texttt{Tuition}$ suggests that students’ financial situation may also contribute to dropout risk and that universities may want to focus on factors other than raw academic performance when developing programs to reduce the dropout rate.
+Finally, we found that models that utilized the mid feature sets, which only included academic data from the first semester, are the best overall choice when predicting student dropout rates. This becomes clear when comparing the F1-Score and Test Accuracy metrics across the early, mid, and full feature sets. For both the F1-Scores and test accuracies, while adding in the first semester data improved performance by approximately 11-13 percent for all models, adding the second semester data only improved performance by 1-5 percent. This suggests that there are only marginal benefits from using the full feature set compared to the mid feature set, as both the bias and classification accuracy of the models are comparable. Additionally, from a computational perspective, $\texttt{XGBoost\_mid}$ was 96\% as accurate as $\texttt{XGBoost\_full}$, and its code ran in half the time. Therefore, to reduce overfitting risk and computation time, the middle feature set should be utilized. 
+
+\section{Conclusion}
+
+This project successfully demonstrates the viability of using machine learning to predict student status and identify at-risk populations. Although both XGBoost and Random Forest models effectively predicted dropouts, based on this projects’ evaluation metrics and operational constraints, we recommend the deployment of the $\texttt{XGBoost\_mid}$ model.
+While $\texttt{XGBoost\_full}$ produced the highest test accuracy, $\texttt{XGBoost\_mid}$ is a better choice overall. This is due to its comparable test accuracy, reduced risk of overfitting, and lower computational costs compared to $\texttt{XGBoost\_full}$. Additionally, from a practical perspective, the middle feature set also enables universities who want to predict student dropout rates to collect only one semester worth of data for their analysis instead of a full year of data.
+
+One key limitation of this study is the lack of replication across various geographies. This data originally came from a Portuguese study that only examined 17 degree programs. The lack of information from around the world may limit the accuracy of these results when applied to other geographies. Further research should be conducted using similar methods on data from additional countries to validate the accuracy of these results.
+
+Overall, future research on this topic is needed to continue the application of machine learning methods to the predict dropout risk. The data from this project came from students in Portugal, so its applicability to other countries and settings, including the United States, is limited. Additionally, if a college wants to utilize machine learning methods to monitor dropout rates, more continuous monitoring and analysis is required in order to account for changes in student demographics, availability of support for students at risk of dropping out, and university-level trends such as grade inflation. 
+
+Despite these limitations, the results of this project displayed the effectiveness of tree-based methods to predict dropouts. Through implementing measures such as monthly accuracy checks, frequent retraining, and quarterly feature importance reviews, universities around the world can harness the power of machine learning to design programs that can directly help at-risk students and improve educational outcomes. 
+
+\newpage
+\section{References}
+\begin{itemize}
+    \item Chen, T., \& Guestrin, C. (2016). XGBoost: A scalable tree boosting system. In \textit{Proceedings of the 22nd ACM SIGKDD International Conference on Knowledge Discovery and Data Mining} (pp. 785--794). \url{https://doi.org/10.1145/2939672.2939785}.
+    \item U.S. Bureau of Labor Statistics. (2025, May). Education pays, 2024. \textit{Career Outlook}. \url{https://www.bls.gov/careeroutlook/2025/data-on-display/education-pays.htm}.
+    \item Lochner, L., \& Moretti, E. (2004). The effect of education on crime: Evidence from prison inmates, arrests, and self-reports. \textit{American Economic Review, 94}(1), 155--189.
+    \item Pedregosa, F., Varoquaux, G., Gramfort, A., Michel, V., Thirion, B., Grisel, O., Blondel, M., Prettenhofer, P., Weiss, R., Dubourg, V., Vanderplas, J., Passos, A., Cournapeau, D., Brucher, M., Perrot, M., \& Duchesnay, E. (2011). Scikit-learn: Machine learning in Python. \textit{Journal of Machine Learning Research, 12}, 2825--2830.
+    \item Realinho, V., Machado, J., Baptista, L., \& Martins, M. (2021). Predict students' dropout and academic success. UCI Machine Learning Repository. \url{https://doi.org/10.24432/C5MC89}.
+\end{itemize}
+\end{document}
